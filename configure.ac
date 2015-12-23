@@ -107,6 +107,8 @@ AX_APPEND_COMPILE_FLAGS([-Wextra -Wwrite-string -Wno-unused-parameter])
 AX_APPEND_COMPILE_FLAGS([-std=gnu99])
 AX_APPEND_COMPILE_FLAGS([-D_GNU_SOURCE -D_REENTRANT])
 
+AC_DEFINE([STRICT_UTF8_CHECK], [1], [Enable UTF8 validation for JSON strings])
+
 AC_CONFIG_FILES([
 Makefile
 json-c.pc

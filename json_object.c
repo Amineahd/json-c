@@ -94,6 +94,57 @@ static void json_object_fini(void)
 }
 #endif /* REFCOUNT_DEBUG */
 
+/*define STRICT_UTF-8_CHECK to only accept UTF-8 chars
+ * source: https://www.cl.cam.ac.uk/~mgk25/ucs/utf8_check.c
+ */
+#ifdef STRICT_UTF8_CHECK
+static unsigned const char *utf8_check(unsigned const char *s, int len) {
+	int i = 0;
+	while (*s && i < len) {
+		if (*s < 0x80){
+			/* 0xxxxxxx */
+			i++;
+			s++;
+		} else if ((s[0] & 0xe0) == 0xc0) {
+			/* 110XXXXx 10xxxxxx */
+			if ((s[1] & 0xc0) != 0x80 ||
+				(s[0] & 0xfe) == 0xc0)                        /* overlong? */
+				return s;
+			else{
+				i += 2;
+				s += 2;
+			}
+		} else if ((s[0] & 0xf0) == 0xe0) {
+			/* 1110XXXX 10Xxxxxx 10xxxxxx */
+			if ((s[1] & 0xc0) != 0x80 ||
+				(s[2] & 0xc0) != 0x80 ||
+				(s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||    /* overlong? */
+				(s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||    /* surrogate? */
+				(s[0] == 0xef && s[1] == 0xbf &&
+				(s[2] & 0xfe) == 0xbe))                      /* U+FFFE or U+FFFF? */
+				return s;
+			else{
+				i += 3;
+				s += 3;
+			}
+		} else if ((s[0] & 0xf8) == 0xf0) {
+			/* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
+			if ((s[1] & 0xc0) != 0x80 ||
+				(s[2] & 0xc0) != 0x80 ||
+				(s[3] & 0xc0) != 0x80 ||
+				(s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||    /* overlong? */
+				(s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) /* > U+10FFFF? */
+				return s;
+			else{
+				i +=4;
+				s += 4;
+			}
+		} else
+			return s;
+	}
+	return NULL;
+}
+#endif
 
 /* helper for accessing the optimized string data component in json_object
  */
@@ -801,6 +852,13 @@ struct json_object* json_object_new_string(const char *s)
 	struct json_object *jso = json_object_new(json_type_string);
 	if (!jso)
 		return NULL;
+
+	if (STRICT_UTF8_CHECK == 1 && utf8_check((const unsigned char *)s, strlen(s)) != NULL) {
+		/*set errno to Bad message (POSIX.1) */
+		errno = EBADMSG;
+		return NULL;
+	}	
+
 	jso->_delete = &json_object_string_delete;
 	jso->_to_json_string = &json_object_string_to_json_string;
 	jso->o.c_string.len = strlen(s);
@@ -824,6 +882,13 @@ struct json_object* json_object_new_string_len(const char *s, int len)
 	struct json_object *jso = json_object_new(json_type_string);
 	if (!jso)
 		return NULL;
+	
+	if (STRICT_UTF8_CHECK == 1 && utf8_check((const unsigned char *)s, len) != NULL) {
+		/*set errno to Bad message (POSIX.1) */
+		errno = EBADMSG;
+		return NULL;
+	}
+	
 	jso->_delete = &json_object_string_delete;
 	jso->_to_json_string = &json_object_string_to_json_string;
 	if(len < LEN_DIRECT_STRING_DATA) {

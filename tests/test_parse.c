@@ -3,11 +3,13 @@
 #include <stddef.h>
 #include <string.h>
 #include <assert.h>
+#include <iconv.h>
 
 #include "json.h"
 #include "json_tokener.h"
 
 static void test_basic_parse(void);
+static void test_non_utf8(void);
 static void test_verbose_parse(void);
 static void test_incremental_parse(void);
 
@@ -16,6 +18,8 @@ int main(int argc, char **argv)
 	MC_SET_DEBUG(1);
 
 	test_basic_parse();
+	printf("==================================\n");
+	test_non_utf8();
 	printf("==================================\n");
 	test_verbose_parse();
 	printf("==================================\n");
@@ -151,6 +155,32 @@ static void test_basic_parse()
 	new_obj = json_tokener_parse("{ \"abc\": 12, \"foo\": \"bar\", \"bool0\": false, \"bool1\": true, \"arr\": [ 1, 2, 3, null, 5 ] }");
 	printf("new_obj.to_string()=%s\n", json_object_to_json_string(new_obj));
 	json_object_put(new_obj);
+}
+
+static void test_non_utf8(){
+	
+	json_object *new_obj;
+	iconv_t cd = iconv_open("ISO_8859-1", "UTF-8");
+
+	char *input = "JürgenPC";
+	char *in_buf = &input[0];
+	size_t in_left = (size_t)strlen(input);
+
+	char output[32];
+	char *out_buf = &output[0];
+	size_t out_left = sizeof(output) - 1;
+
+	do {
+		if (iconv(cd, &in_buf, &in_left, &out_buf, &out_left) == (size_t) -1) {
+			perror("iconv failed!");
+		}
+	} while (in_left > 0 && out_left > 0);
+	*out_buf = 0;
+	
+	new_obj = json_object_new_string(output);
+	printf("new_obj.to_string()=%s\n",json_object_to_json_string(new_obj));
+	json_object_put(new_obj);
+	iconv_close(cd);
 }
 
 static void test_verbose_parse()
